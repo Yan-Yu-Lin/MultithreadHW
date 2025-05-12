@@ -1,50 +1,50 @@
-# Matrix Multiplication Benchmark Report
+# 矩陣乘法基準測試報告
 
-This report summarizes the performance of different threading strategies for multiplying a 50×80 matrix by an 80×50 matrix using Python and NumPy, comparing it to a single-threaded baseline.
+本報告旨在總結使用 Python 與 NumPy 進行 50×80 矩陣乘以 80×50 矩陣時，不同執行緒策略的效能，並與單一執行緒的基準進行比較。
 
-## Methodology
+## 方法論
 
-Four approaches were benchmarked:
+基準測試涵蓋了四種方法：
 
-1.  **Single-threaded (`single`):** Implemented in `matrix_mul_single.py`. Uses a standard triple-nested `for` loop (`for i`, `for j`, `for k`) to calculate each element of the result matrix sequentially.
-2.  **Multi-threaded (`cell`, `row`, `block`):** Implemented in `matrix_mul_threaded.py`. This version partitions the work and uses multiple threads.
+1.  **單一執行緒 (`single`)：** 實作於 `matrix_mul_single.py`。使用標準的三層巢狀 `for` 迴圈（`for i`, `for j`, `for k`）來依序計算結果矩陣中的每個元素。
+2.  **多執行緒 (`cell`, `row`, `block`)：** 實作於 `matrix_mul_threaded.py`。此版本會分割工作並使用多個執行緒。
 
-    *   **Partitioning:** Instead of a single triple loop, the work is divided based on the chosen mode:
-        *   `cell`: One thread per output cell.
-        *   `row`: One thread per output row.
-        *   `block`: One thread per 10x25 block of the output matrix.
-    *   **Threading:** The `run_threaded` function creates `threading.Thread` objects, assigning each a portion of the calculation via the `worker` function. The `worker` function uses NumPy's optimized matrix multiplication (`@`) for its assigned sub-matrix.
-    *   **Synchronization:** The main thread waits for all worker threads to complete using `t.join()` before proceeding.
+    *   **分割 (Partitioning)：** 工作根據所選模式進行分割，而非單一的三層迴圈：
+        *   `cell`：每個輸出儲存格分配一個執行緒。
+        *   `row`：每個輸出列分配一個執行緒。
+        *   `block`：輸出矩陣分割為 10x25 的區塊，每個區塊分配一個執行緒。
+    *   **執行緒化 (Threading)：** `run_threaded` 函數創建 `threading.Thread` 物件，透過 `worker` 函數為每個執行緒分配一部分計算任務。`worker` 函數使用 NumPy 優化的矩陣乘法 (`@`) 來計算其分配到的子矩陣。
+    *   **同步 (Synchronization)：** 主執行緒會使用 `t.join()` 等待所有工作執行緒完成後再繼續執行。
 
-The benchmarks were run 3 times for each approach using Python 3.13.2 within a `uv` virtual environment on macOS.
+每個方法都在 macOS 上的 `uv` 虛擬環境中使用 Python 3.13.2 執行了 3 次。
 
-**Execution Time Measurement (Q2):** The CPU running time was measured in milliseconds using Python's `time.perf_counter()`. The time was recorded just before the multiplication function call (`multiply_single` or `run_threaded`) and again immediately after. The difference between these two timestamps was then multiplied by 1,000 to convert seconds to milliseconds (`elapsed_ms = (time.perf_counter() - t0) * 1_000`).
+**執行時間測量 (Q2):** CPU 執行時間是使用 Python 的 `time.perf_counter()` 以毫秒為單位進行測量。在乘法函數（`multiply_single` 或 `run_threaded`）呼叫之前和之後立即記錄時間。這兩個時間戳之間的差異再乘以 1,000，將秒轉換為毫秒（`elapsed_ms = (time.perf_counter() - t0) * 1_000`）。
 
-## Results (Q2)
+## 結果 (Q2)
 
-The average elapsed time (in milliseconds) for each mode over 3 runs is presented below:
+以下表格呈現了每種模式執行 3 次的平均耗時（毫秒）：
 
-| Mode          | Threads | Average Time (ms) | Speedup vs. Single |
-| :------------ | ------: | ----------------: | :----------------- |
-| `single`      |       1 |             29.28 | 1.0x               |
-| `cell`        |    2500 |            118.58 | 0.25x (Slower)     |
-| `row`         |      50 |              2.29 | 12.8x              |
-| `block`       |      10 |              1.14 | 25.7x              |
+| 模式          | 執行緒數量 | 平均時間 (ms) | 相對於單一執行緒的加速比 |
+| :------------ | --------: | -------------: | :--------------------- |
+| `single`      |         1 |          29.28 | 1.0x                   |
+| `cell`        |      2500 |         118.58 | 0.25x (較慢)           |
+| `row`         |        50 |           2.29 | 12.8x                  |
+| `block`       |        10 |           1.14 | 25.7x                  |
 
-*(Raw data in `results.csv`)*
+*(原始數據儲存於 `results.csv`)*
 
-## Discoveries and Comments (Q3)
+## 發現與評論 (Q3)
 
-This exercise highlights several key aspects of threaded programming:
+本次練習突顯了執行緒程式設計的幾個關鍵面向：
 
--   **Overhead vs. Parallelism:** The most significant discovery is the trade-off between the potential for parallelism and the overhead introduced by managing threads. The `cell` mode, despite having the most threads (2500), performed significantly worse than the single-threaded version. This demonstrates that creating and coordinating a very large number of threads for extremely small tasks (calculating one cell) incurs more overhead than the computational benefit gained.
+-   **開銷 vs. 平行性 (Overhead vs. Parallelism)：** 最重要的發現是平行處理潛力與管理執行緒所引入的開銷之間的權衡。`cell` 模式儘管擁有最多的執行緒（2500 個），但效能卻明顯差於單一執行緒版本。這證明了為極小的任務（計算一個儲存格）創建和協調大量執行緒所產生的開銷，超過了所獲得的計算效益。
 
--   **Task Granularity Matters:** Performance improved dramatically when threads were given larger, more substantial tasks. The `row` mode (50 threads, 1 row each) was ~13x faster than single-threaded, and the `block` mode (10 threads, 1 block each) was ~26x faster. This shows the importance of choosing an appropriate granularity for parallel tasks.
+-   **任務粒度至關重要 (Task Granularity Matters)：** 當執行緒被分配更大、更實質的任務時，效能顯著提升。`row` 模式（50 個執行緒，每個處理一行）比單一執行緒快約 13 倍，而 `block` 模式（10 個執行緒，每個處理一個區塊）則快約 26 倍。這顯示了為平行任務選擇適當粒度的重要性。
 
--   **Leveraging Optimized Libraries (NumPy & GIL):** The speedups observed in `row` and `block` modes are possible even with Python's Global Interpreter Lock (GIL) because the core computation within each thread (`A[rs:re, :] @ B[:, cs:ce]`) is performed by NumPy. NumPy releases the GIL during its C-optimized operations, allowing true parallel execution of the matrix multiplication across multiple CPU cores.
+-   **善用優化函式庫 (NumPy & GIL)：** 在 `row` 和 `block` 模式中觀察到的加速，即使在有 Python 的全域直譯器鎖（GIL）的情況下也是可能的，因為每個執行緒內的核心計算（`A[rs:re, :] @ B[:, cs:ce]`）是由 NumPy 執行的。NumPy 在其 C 語言優化的操作期間會釋放 GIL，允許矩陣乘法真正在多核心處理器上平行執行。
 
--   **Optimal Strategy:** For this specific problem (50x80 @ 80x50 matrix multiplication) on the test system, the `block` strategy with 10 threads provided the best balance, minimizing overhead while maximizing parallel computation through NumPy.
+-   **最佳策略 (Optimal Strategy)：** 對於此特定問題（50x80 @ 80x50 矩陣乘法）和測試系統而言，`block` 策略使用 10 個執行緒提供了最佳平衡，最大限度地減少了開銷，同時透過 NumPy 最大化了平行計算。
 
-## Conclusion
+## 結論
 
-Multi-threading can significantly accelerate computationally intensive tasks like matrix multiplication, but careful consideration must be given to how the work is partitioned. Dividing the work into appropriately sized chunks (task granularity) is crucial to avoid the performance penalties associated with excessive thread management overhead. Utilizing libraries like NumPy that release the GIL allows Python threads to achieve substantial performance gains on multi-core processors.
+多執行緒可以顯著加速計算密集型任務（如矩陣乘法），但必須仔細考慮如何分割工作。將工作劃分為適當大小的區塊（任務粒度）對於避免因過度管理執行緒開銷而導致的效能損失至關重要。利用像 NumPy 這樣能釋放 GIL 的函式庫，可以讓 Python 執行緒在多核心處理器上實現顯著的效能提升。 
