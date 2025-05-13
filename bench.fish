@@ -54,3 +54,8 @@ for i in (seq 3)
 end
 
 echo "Benchmark complete. Results saved to $RESULTS"
+
+# Display the results in a formatted table
+echo ""
+echo "Summary Table:"
+column -t -s "," $RESULTS
